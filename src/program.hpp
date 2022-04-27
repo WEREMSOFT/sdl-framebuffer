@@ -17,8 +17,6 @@
 #include <iostream>
 #include <string>
 
-#include <time.h>
-
 #define SCREEN_WIDTH 320
 #define SCREEN_HEIGHT 240
 #define SCREEN_SIZE_MULTIPLIER 3
@@ -34,22 +32,37 @@ struct FrameRate
     Uint64 end = 0;
 };
 
+class Camera
+{
+    float fov;
+
+public:
+    glm::mat4 projection;
+    glm::vec4 view;
+
+    Camera(float pFov = 60.0f) : fov(pFov)
+    {
+        projection = glm::perspective(glm::radians(fov), (float)(SCREEN_WIDTH / SCREEN_HEIGHT), 0.1f, 100.f);
+        view = glm::vec4(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+    }
+};
+
 using namespace std;
 class Program
 {
     SDL_Window *window = NULL;
     SDL_Renderer *renderer;
 
-    glm::mat4 projection;
-    glm::vec4 view;
     glm::mat4 cubeRotation;
+    Camera camera;
 
     float cubeRotationAngle = 0.0f;
 
     FrameRate fr = {0};
 
-    std::vector<glm::vec3>
-        cube;
+    std::vector<glm::vec3> cube;
+
+    bool isProgramRunning = true;
 
     void initCube(float sideSize, float step)
     {
@@ -59,12 +72,6 @@ class Program
             for (float y = -halfSize; y < halfSize; y += step)
                 for (float z = -halfSize; z < halfSize; z += step)
                     cube.emplace_back((glm::vec3){x, y, z});
-    }
-
-    void initCamera()
-    {
-        projection = glm::perspective(glm::radians(60.0f), (float)(SCREEN_WIDTH / SCREEN_HEIGHT), 0.1f, 100.f);
-        view = glm::vec4(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
     }
 
     void updateDeltaTime()
@@ -89,9 +96,44 @@ class Program
         int cubeSize = cube.size();
         for (int i = 0; i < cubeSize; i++)
         {
-            auto vertexP = glm::project(cube[i], model * cubeRotation, projection, view);
+            auto vertexP = glm::project(cube[i], model * cubeRotation, camera.projection, camera.view);
             SDL_RenderDrawPoint(renderer, vertexP.x, vertexP.y);
         }
+    }
+
+    void handleEvents(void)
+    {
+        SDL_Event evt = {0};
+        while (SDL_PollEvent(&evt))
+        {
+            if (evt.type == SDL_QUIT)
+            {
+                isProgramRunning = false;
+            }
+
+            if (evt.type == SDL_KEYUP)
+            {
+                if (evt.key.keysym.sym == SDLK_ESCAPE)
+                {
+                    isProgramRunning = false;
+                }
+
+                if (evt.key.keysym.sym == SDLK_LEFT)
+                {
+                }
+            }
+        }
+    }
+
+    void clearScreen(int r = 0, int g = 0, int b = 0)
+    {
+        SDL_SetRenderDrawColor(renderer, r, g, b, 255);
+        SDL_RenderClear(renderer);
+    }
+
+    void display(void)
+    {
+        SDL_RenderPresent(renderer);
     }
 
 public:
@@ -114,41 +156,17 @@ public:
 
         renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
         SDL_RenderSetLogicalSize(renderer, SCREEN_WIDTH, SCREEN_HEIGHT);
-
-        initCamera();
     }
 
-    int runMainLoop()
+    void runMainLoop()
     {
-        SDL_Event evt = {0};
-        while (true)
+        while (isProgramRunning)
         {
+            handleEvents();
             updateDeltaTime();
-
-            while (SDL_PollEvent(&evt))
-            {
-                if (evt.type == SDL_QUIT)
-                {
-                    return 0;
-                }
-
-                if (evt.type == SDL_KEYUP)
-                {
-                    if (evt.key.keysym.sym == SDLK_ESCAPE)
-                    {
-                        return 0;
-                    }
-                }
-            }
-
-            SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-            SDL_RenderClear(renderer);
-            SDL_RenderDrawPoint(renderer, 1, 1);
-
+            clearScreen();
             drawCube(fr.dT);
-
-            SDL_RenderPresent(renderer);
-            SDL_UpdateWindowSurface(window);
+            display();
         }
     }
 
@@ -156,7 +174,6 @@ public:
     {
         printf("Terminating\n");
         SDL_DestroyWindow(window);
-
         SDL_Quit();
     }
 };
